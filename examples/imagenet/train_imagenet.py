@@ -22,6 +22,52 @@ import googlenet
 import googlenetbn
 import nin
 
+class AugmentedDataset(chainer.dataset.DatasetMixin):
+
+    def __init__(self, path, root, mean, std, pca, crop_size, test_scale, random=True):
+        self.base = chainer.datasets.LabeledImageDataset(path, root)
+        self.mean = mean
+        self.std = std
+        self.pca = pca
+        self.crop_size = crop_size
+        self.test_scale = test_scale
+        self.random = random
+
+    def __len__(self):
+        return len(self.base)
+
+    def random_size_crop(self, image):
+        _, h, w = image.shape
+
+    def color_normalize(self, image):
+        image -= self.mean
+        image /= self.std
+
+    def get_example(self, i):
+        # It reads the i-th image/label pair and return a preprocessed image.
+        # It applies following preprocesses:
+        #     - Cropping (random or center rectangular)
+        #     - Random flip
+        #     - Scaling to [0, 1] value
+        crop_size = self.crop_size
+
+        image, label = self.base[i]
+        _, h, w = image.shape
+
+        if self.random:
+            # scale image to given
+            random_sized_crop(image)
+            color_jitter(image, brightness = 0.4, contrast = 0.4, saturation = 0.4)
+            relighting(image, 0.1)
+            color_normalize(image)
+            horizontal_flip(image, 0.5),
+        else:
+            # Crop the center
+            scale(test_scale)
+            color_normalize()
+            crop(crop_size)
+        return image, label
+
 
 class PreprocessedDataset(chainer.dataset.DatasetMixin):
 
@@ -44,6 +90,8 @@ class PreprocessedDataset(chainer.dataset.DatasetMixin):
 
         image, label = self.base[i]
         _, h, w = image.shape
+
+        # scale image to given
 
         if self.random:
             # Randomly crop a region and flip the image
@@ -113,8 +161,9 @@ def main():
 
     # Load the datasets and mean file
     mean = np.load(args.mean)
-    train = PreprocessedDataset(args.train, args.root, mean, model.insize)
+    train = AugmentedDataset(args.train, args.root, mean, model.insize)
     val = PreprocessedDataset(args.val, args.root, mean, model.insize, False)
+    
     # These iterators load the images with subprocesses running in parallel to
     # the training/validation.
     train_iter = chainer.iterators.MultiprocessIterator(
